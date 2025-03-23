@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
-import { detectSilenceAndBuildPhrases } from '../detectSilenceAndBuildPhrases.ts';
+import {useRef, useState} from 'react';
+import {detectSilenceAndBuildPhrases} from '../detectSilenceAndBuildPhrases.ts';
 
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import {useLocalStorage} from '../hooks/useLocalStorage';
 import PhraseDurationSlider from './ui/PhraseDurationSlider.tsx';
+import {createCombinedAudio} from '../createCombinedAudio.ts';
+import PausePercentageSlider from './ui/PausePercentageSlider.tsx';
 
 interface Phrase {
     start: number;
@@ -14,6 +16,7 @@ export const AudioPhrasePlayer: React.FC = () => {
     const [audioUrl, setAudioUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
     const [minPhraseDuration, setMinPhraseDuration] = useLocalStorage<number>(
@@ -22,6 +25,8 @@ export const AudioPhrasePlayer: React.FC = () => {
     );
 
     const [lastCalculatedDuration, setLastCalculatedDuration] = useState<number | null>(null);
+    const [pausePercentage, setPausePercentage] = useState<number>(20);
+    const [finalAudioUrl, setFinalAudioUrl] = useState<string | null>(null);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -38,7 +43,7 @@ export const AudioPhrasePlayer: React.FC = () => {
         setUploadedFile(file);
 
         try {
-            const { phrases, audioBuffer } = await detectSilenceAndBuildPhrases(
+            const {phrases, audioBuffer} = await detectSilenceAndBuildPhrases(
                 file,
                 0.01,
                 0.3,
@@ -47,6 +52,8 @@ export const AudioPhrasePlayer: React.FC = () => {
             console.log('Длительность аудио:', audioBuffer.duration);
             setPhrases(phrases);
             setLastCalculatedDuration(minPhraseDuration); // ✅ фиксируем актуальное значение после расчёта
+            // ✅ Сразу генерируем итоговый файл
+            await generateFinalAudio(phrases, audioBuffer);
         } catch (error) {
             console.error('Ошибка при анализе аудиофайла:', error);
         } finally {
@@ -63,7 +70,7 @@ export const AudioPhrasePlayer: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const { phrases, audioBuffer } = await detectSilenceAndBuildPhrases(
+            const {phrases, audioBuffer} = await detectSilenceAndBuildPhrases(
                 uploadedFile,
                 0.01,
                 0.3,
@@ -92,22 +99,31 @@ export const AudioPhrasePlayer: React.FC = () => {
         return audioRef.current;
     };
 
-    const playPhrase = (start: number, end: number) => {
-        const audio = getAudio();
-        if (!audio) return;
+    const generateFinalAudio = async (
+        phrasesToCombine: Phrase[],
+        audioBuffer: AudioBuffer
+    ): Promise<void> => {
+        if (!phrasesToCombine.length || !audioBuffer) {
+            console.error('Нет данных для генерации итогового файла');
+            return;
+        }
 
-        audio.currentTime = start;
+        try {
+            const wavBlob = await createCombinedAudio(
+                audioBuffer,
+                phrasesToCombine,
+                pausePercentage
+            );
 
-        audio.play().catch((err) => {
-            console.error('Ошибка воспроизведения:', err);
-        });
+            const url = URL.createObjectURL(wavBlob);
+            setFinalAudioUrl(url);
 
-        const duration = (end - start) * 1000;
-
-        setTimeout(() => {
-            audio.pause();
-        }, duration);
+            console.log('Аудио собрано успешно!');
+        } catch (error) {
+            console.error('Ошибка при генерации итогового аудио:', error);
+        }
     };
+
 
     const isRecalculateDisabled =
         isLoading ||
@@ -118,12 +134,22 @@ export const AudioPhrasePlayer: React.FC = () => {
         <div className="p-4 flex flex-col items-center space-y-4">
             <h2 className="text-lg font-bold">Загрузите аудиофайл</h2>
 
-            {/* ✅ Слайдер длины фразы */}
+            {/* ✅ Phrase Duration Slider */}
             <PhraseDurationSlider
                 value={minPhraseDuration}
                 onChange={setMinPhraseDuration}
                 min={1}
                 max={30}
+                step={1}
+                disabled={isLoading}
+            />
+
+            {/* ✅ Pause Percentage Slider */}
+            <PausePercentageSlider
+                value={pausePercentage}
+                onChange={setPausePercentage}
+                min={0}
+                max={100}
                 step={1}
                 disabled={isLoading}
             />
@@ -137,7 +163,6 @@ export const AudioPhrasePlayer: React.FC = () => {
                     className="mt-2"
                 />
 
-                {/* ✅ Кнопка перерасчёта */}
                 <button
                     onClick={recalculatePhrases}
                     disabled={isRecalculateDisabled}
@@ -149,25 +174,20 @@ export const AudioPhrasePlayer: React.FC = () => {
 
             {isLoading && <p>Анализ аудиофайла...</p>}
 
-            {!isLoading && phrases.length > 0 && (
-                <div className="w-full space-y-2 mt-4">
-                    <h3 className="font-bold text-lg">Фразы:</h3>
-                    {phrases.map((phrase, idx) => (
-                        <div key={idx} className="flex items-center space-x-2">
-                            <button
-                                onClick={() => playPhrase(phrase.start, phrase.end)}
-                                className="bg-blue-500 hover:bg-blue-600 transition-colors text-white px-4 py-2 rounded"
-                            >
-                                ▶️ Фраза {idx + 1} (
-                                {phrase.start.toFixed(2)}s - {phrase.end.toFixed(2)}s,
-                                длина: {(phrase.end - phrase.start).toFixed(2)}s
-                                )
-                            </button>
-                        </div>
-                    ))}
+            {finalAudioUrl && (
+                <div className="mt-4 flex flex-col items-center space-y-2">
+                    <audio controls src={finalAudioUrl}></audio>
+                    <a
+                        href={finalAudioUrl}
+                        download="combined_audio.wav"
+                        className="text-blue-500 underline"
+                    >
+                        Скачать итоговый аудиофайл
+                    </a>
                 </div>
             )}
         </div>
+
     );
 };
 
