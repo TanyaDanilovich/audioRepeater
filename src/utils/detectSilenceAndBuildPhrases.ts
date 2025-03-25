@@ -1,7 +1,9 @@
+import {Phrase} from '../components/AudioPhrasePlayer.tsx';
+
 export const detectSilenceAndBuildPhrases = async (
     file: File,
     silenceThreshold = 0.01,
-    minSilenceDuration = 0.3, // минимальная пауза, чтобы считалась паузой
+    minSilenceDuration = 0.1, // минимальная пауза, чтобы считалась паузой
     minPhraseDuration  // минимальная длина фразы
 ) => {
     const audioContext = new AudioContext();
@@ -12,7 +14,7 @@ export const detectSilenceAndBuildPhrases = async (
     const sampleRate = audioBuffer.sampleRate;
     const silenceSamples = minSilenceDuration * sampleRate;
 
-    const phrases: { start: number; end: number }[] = [];
+    const phrases: Phrase[] = [];
 
     let isSilent = false;
     let silenceStart = 0;
@@ -41,7 +43,8 @@ export const detectSilenceAndBuildPhrases = async (
                     // Фраза достаточно длинная, добавляем её
                     phrases.push({
                         start: lastPhraseStart,
-                        end: phraseEnd
+                        end: phraseEnd,
+                        duration: phraseDuration
                     });
 
                     // Следующая фраза начнётся после этой паузы
@@ -60,11 +63,13 @@ export const detectSilenceAndBuildPhrases = async (
     if (remainingDuration >= minPhraseDuration) {
         phrases.push({
             start: lastPhraseStart,
-            end: audioDuration
+            end: audioDuration,
+            duration: remainingDuration
         });
     }
 
     console.log('Найденные фразы:', phrases);
+    console.log('Продолжительность аудио:', audioDuration);
 
-    return { phrases, audioBuffer };
+    return {phrases, audioBuffer};
 };

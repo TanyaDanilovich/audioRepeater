@@ -4,14 +4,17 @@ import {useLocalStorage} from '../hooks/useLocalStorage';
 import {createCombinedAudio} from '../utils/createCombinedAudio.ts';
 import ValueSlider from './ui/ValueSlider.tsx';
 
-interface Phrase {
+
+export interface Phrase {
     start: number;
     end: number;
+    duration: number;
 }
 
 export const AudioPhrasePlayer: React.FC = () => {
 
     const [isLoading, setIsLoading] = useState(false);
+    const [phrases, setPhrases] = useState([]);
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
     // User settings in localStorage
@@ -47,7 +50,7 @@ export const AudioPhrasePlayer: React.FC = () => {
             // Store current settings as last applied
             setPrevPhraseDuration(userPhraseDuration);
             setPrevPauseDuration(userPauseDuration);
-
+            setPhrases(phrases);
             await regenerateCombinedAudioFile(phrases, audioBuffer);
         } catch (error) {
             console.error('Error analyzing audio file:', error);
@@ -76,7 +79,7 @@ export const AudioPhrasePlayer: React.FC = () => {
             // Update applied settings
             setPrevPhraseDuration(userPhraseDuration);
             setPrevPauseDuration(userPauseDuration);
-
+            setPhrases(phrases);
             // Rebuild the audio with new settings
             await regenerateCombinedAudioFile(phrases, audioBuffer);
         } catch (error) {
@@ -114,6 +117,24 @@ export const AudioPhrasePlayer: React.FC = () => {
     const onChangePhraseSlider = (newValue: number) => {
         setPrevPhraseDuration(userPhraseDuration);
         setUserPhraseDuration(newValue);
+    };
+
+    const playPhrase = async (start: number, end: number) => {
+        if (!uploadedFile) return;
+
+        const arrayBuffer = await uploadedFile.arrayBuffer();
+        const audioContext = new AudioContext();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+
+        // Определим длительность фразы
+        const duration = end - start;
+
+        // Создаём и подключаем к выходу
+        source.connect(audioContext.destination);
+        source.start(0, start, duration); // (воспроизводить сейчас, с позиции start, в течение duration)
     };
 
 
@@ -182,6 +203,23 @@ export const AudioPhrasePlayer: React.FC = () => {
             {finalAudioUrl && (
                 <div className = "mt-4 flex flex-col items-center space-y-2">
                     <audio controls src = {finalAudioUrl}></audio>
+                </div>
+            )}
+
+            {/*//////////////////////////////////////////////////////////////////*/}
+            {phrases.length > 0 && uploadedFile && (
+                <div className = "w-full mt-6 space-y-2">
+                    <h3 className = "text-md font-semibold mb-2">Прослушать фразы:</h3>
+                    {phrases.map((phrase, idx) => (
+                        <div key = {idx} className = "flex items-center space-x-2">
+                            <button
+                                onClick = {() => playPhrase(phrase.start, phrase.end)}
+                                className = "px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            >
+                                ▶️ Фраза {idx + 1} ({(phrase.duration).toFixed(2)}s)
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
