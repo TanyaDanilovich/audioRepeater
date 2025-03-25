@@ -1,10 +1,7 @@
 import {useState} from 'react';
 import {detectSilenceAndBuildPhrases} from '../utils/detectSilenceAndBuildPhrases.ts';
-
 import {useLocalStorage} from '../hooks/useLocalStorage';
-import PhraseDurationSlider from './ui/PhraseDurationSlider.tsx';
 import {createCombinedAudio} from '../utils/createCombinedAudio.ts';
-import PausePercentageSlider from './ui/PausePercentageSlider.tsx';
 import ValueSlider from './ui/ValueSlider.tsx';
 
 interface Phrase {
@@ -13,55 +10,47 @@ interface Phrase {
 }
 
 export const AudioPhrasePlayer: React.FC = () => {
-    const [phrases, setPhrases] = useState<Phrase[]>([]);
-    const [audioUrl, setAudioUrl] = useState('');
+
     const [isLoading, setIsLoading] = useState(false);
-
-
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-    const [minPhraseDuration, setMinPhraseDuration] = useLocalStorage<number>(
-        'minPhraseDuration',
-        5
-    );
-    const [pausePercentage, setPausePercentage] = useLocalStorage<number>(
-        'pausePercentage',
-        100
-    );
 
-    const [lastCalculatedDuration, setLastCalculatedDuration] = useState<number | null>(null);
-    const [lastPauseDuration, setLastPauseDuration] = useState<number | null>(null);
+    // User settings in localStorage
+    const [userPhraseDuration, setUserPhraseDuration] = useLocalStorage<number>('userPhraseDuration', 5);
+    const [userPauseDuration, setUserPauseDuration] = useLocalStorage<number>('userPauseDuration', 100);
 
+    // Previous values — used to detect if settings changed
+    const [prevPhraseDuration, setPrevPhraseDuration] = useState<number | null>(null);
+    const [prevPauseDuration, setPrevPauseDuration] = useState<number | null>(null);
+
+    // Final combined audio URL to be played
     const [finalAudioUrl, setFinalAudioUrl] = useState<string | null>(null);
-
-    //const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !(file instanceof File)) {
-            console.error('Неверный файл');
+            console.error('Invalid file');
             return;
         }
 
         setIsLoading(true);
-        //const url = URL.createObjectURL(file);
-        //setAudioUrl(url);
         setUploadedFile(file);
 
         try {
+            // Detect phrases and silences from the uploaded audio
             const {phrases, audioBuffer} = await detectSilenceAndBuildPhrases(
                 file,
                 0.01,
                 0.3,
-                minPhraseDuration
+                userPhraseDuration
             );
-            console.log('Длительность аудио:', audioBuffer.duration);
-            setPhrases(phrases);
-            setLastCalculatedDuration(minPhraseDuration); // ✅ фиксируем актуальное значение после расчёта
-            setLastPauseDuration(pausePercentage); // ✅ фиксируем актуальное значение после расчёта
-            // ✅ Сразу генерируем итоговый файл
-            await generateFinalAudio(phrases, audioBuffer);
+
+            // Store current settings as last applied
+            setPrevPhraseDuration(userPhraseDuration);
+            setPrevPauseDuration(userPauseDuration);
+
+            await regenerateCombinedAudioFile(phrases, audioBuffer);
         } catch (error) {
-            console.error('Ошибка при анализе аудиофайла:', error);
+            console.error('Error analyzing audio file:', error);
         } finally {
             setIsLoading(false);
         }
@@ -69,39 +58,41 @@ export const AudioPhrasePlayer: React.FC = () => {
 
     const recalculatePhrases = async () => {
         if (!uploadedFile) {
-            console.error('Нет загруженного файла для перерасчёта');
+            console.error('No file available for recalculation');
             return;
         }
 
         setIsLoading(true);
 
         try {
-            const {
-                //phrases
-                 audioBuffer} = await detectSilenceAndBuildPhrases(
+            // Re-run silence detection and phrase building
+            const {phrases, audioBuffer} = await detectSilenceAndBuildPhrases(
                 uploadedFile,
                 0.01,
                 0.3,
-                minPhraseDuration
+                userPhraseDuration
             );
-            console.log('Перерасчёт завершён. Длительность аудио:', audioBuffer.duration);
-            setPhrases(phrases);
-            setLastCalculatedDuration(minPhraseDuration); // ✅ обновляем после перерасчёта
-            setLastPauseDuration(pausePercentage); // ✅ фиксируем актуальное значение после перерасчёта
 
+            // Update applied settings
+            setPrevPhraseDuration(userPhraseDuration);
+            setPrevPauseDuration(userPauseDuration);
+
+            // Rebuild the audio with new settings
+            await regenerateCombinedAudioFile(phrases, audioBuffer);
         } catch (error) {
-            console.error('Ошибка при перерасчёте фраз:', error);
+            console.error('Error during phrase recalculation:', error);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const generateFinalAudio = async (
+    // Combine phrases with pauses and create final audio file
+    const regenerateCombinedAudioFile = async (
         phrasesToCombine: Phrase[],
         audioBuffer: AudioBuffer
     ): Promise<void> => {
         if (!phrasesToCombine.length || !audioBuffer) {
-            console.error('Нет данных для генерации итогового файла');
+            console.error('No data to build final audio');
             return;
         }
 
@@ -109,52 +100,63 @@ export const AudioPhrasePlayer: React.FC = () => {
             const wavBlob = await createCombinedAudio(
                 audioBuffer,
                 phrasesToCombine,
-                pausePercentage
+                userPauseDuration
             );
 
             const url = URL.createObjectURL(wavBlob);
             setFinalAudioUrl(url);
-
-            console.log('Аудио собрано успешно!');
         } catch (error) {
-            console.error('Ошибка при генерации итогового аудио:', error);
+            console.error('Error generating combined audio file:', error);
         }
     };
 
 
+    const onChangePhraseSlider = (newValue: number) => {
+        setPrevPhraseDuration(userPhraseDuration);
+        setUserPhraseDuration(newValue);
+    };
+
+
+    const onChangePauseSlider = (newValue: number) => {
+        setPrevPauseDuration(userPauseDuration);
+        setUserPauseDuration(newValue);
+    };
+
+    // Button is disabled if nothing changed or no file is loaded
     const isRecalculateDisabled =
         isLoading ||
         !uploadedFile ||
-        lastCalculatedDuration === minPhraseDuration ||
-        lastPauseDuration === pausePercentage;
+        prevPhraseDuration === userPhraseDuration &&
+        prevPauseDuration === userPauseDuration;
 
     return (
         <div className = "p-4 flex flex-col items-center space-y-4">
-            <h2 className = "text-lg font-bold">Загрузите аудиофайл</h2>
+            <h2 className = "text-lg font-bold">Upload an audio file</h2>
 
-            {/* ✅ Phrase Duration Slider */}
+            {/* Phrase duration slider */}
             <ValueSlider
-                label={"Длительность фразы"}
-                unit={"сек."}
-                value = {minPhraseDuration}
-                onChange = {setMinPhraseDuration}
+                label = "Phrase duration"
+                unit = "sec"
+                value = {userPhraseDuration}
+                onChange = {onChangePhraseSlider}
                 min = {1}
                 max = {30}
                 step = {1}
                 disabled = {isLoading}
             />
 
-            {/* ✅ Pause Percentage Slider */}
+            {/* Pause duration slider */}
             <ValueSlider
-                label={"Длительность паузы"}
-                unit={"%"}
-                max={200}
-                step={10}
-                value = {pausePercentage}
-                onChange = {setPausePercentage}
+                label = "Pause after phrase"
+                unit = "%"
+                value = {userPauseDuration}
+                onChange = {onChangePauseSlider}
+                max = {200}
+                step = {10}
                 disabled = {isLoading}
             />
 
+            {/* File input + Recalculate button */}
             <div className = "flex space-x-2">
                 <input
                     type = "file"
@@ -169,26 +171,20 @@ export const AudioPhrasePlayer: React.FC = () => {
                     disabled = {isRecalculateDisabled}
                     className = "px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded disabled:opacity-50"
                 >
-                    Пересчитать фразы
+                    Recalculate Phrases
                 </button>
             </div>
 
-            {isLoading && <p>Анализ аудиофайла...</p>}
+            {/* Loading indicator */}
+            {isLoading && <p>Analyzing audio file...</p>}
 
+            {/* Playback output */}
             {finalAudioUrl && (
                 <div className = "mt-4 flex flex-col items-center space-y-2">
                     <audio controls src = {finalAudioUrl}></audio>
-                    <a
-                        href = {finalAudioUrl}
-                        download = "combined_audio.wav"
-                        className = "text-blue-500 underline"
-                    >
-                        Скачать итоговый аудиофайл
-                    </a>
                 </div>
             )}
         </div>
-
     );
 };
 
