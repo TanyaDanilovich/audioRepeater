@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "vite build && vite gh-pages"
   },
   "dependencies": {
     "@shadcn/ui": "^0.0.4",
@@ -19,13 +20,17 @@
     "@eslint/js": "^9.20.0",
     "@types/react": "18",
     "@types/react-dom": "18",
+    "@typescript-eslint/eslint-plugin": "^8.28.0",
+    "@typescript-eslint/parser": "^8.28.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "eslint": "^9.20.1",
-    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint": "8",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.24.1",
-    "vite": "^6.1.1"
+    "vite": "^6.1.1",
+    "vite-plugin-gh-pages": "^1.0.1"
   }
 }

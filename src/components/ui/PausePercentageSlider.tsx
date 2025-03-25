@@ -12,8 +12,8 @@ const PausePercentageSlider: React.FC<PausePercentageSliderProps> = ({
                                                                          value,
                                                                          onChange,
                                                                          min = 0,
-                                                                         max = 100,
-                                                                         step = 1,
+                                                                         max = 200,
+                                                                         step = 10,
                                                                          disabled = false
                                                                      }) => {
     const increment = () => {
