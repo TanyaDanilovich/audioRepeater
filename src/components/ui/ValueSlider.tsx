@@ -1,22 +1,25 @@
 
-
-interface PhraseDurationSliderProps {
+interface ValueSliderProps {
+    label: string;
     value: number;
-    onChange: (newValue: number) => void;
+    onChange: (value: number) => void;
     min?: number;
     max?: number;
     step?: number;
+    unit?: string;
     disabled?: boolean;
 }
 
-const PhraseDurationSlider: React.FC<PhraseDurationSliderProps> = ({
-                                                                       value,
-                                                                       onChange,
-                                                                       min = 1,
-                                                                       max = 30,
-                                                                       step = 1,
-                                                                       disabled = false
-                                                                   }) => {
+const ValueSlider: React.FC<ValueSliderProps> = ({
+                                                     label,
+                                                     value,
+                                                     onChange,
+                                                     min = 0,
+                                                     max = 100,
+                                                     step = 1,
+                                                     unit = '',
+                                                     disabled = false,
+                                                                     }) => {
     const increment = () => {
         const nextValue = Math.min(value + step, max);
         onChange(nextValue);
@@ -30,13 +33,13 @@ const PhraseDurationSlider: React.FC<PhraseDurationSliderProps> = ({
     return (
         <div className="flex flex-col items-center space-y-2">
             <label className="text-sm font-medium">
-                Длина фразы: {value} секунд
+                {`${label}: ${value} ${unit}`}
             </label>
             <div className="flex items-center space-x-2">
                 <button
                     onClick={decrement}
-                    className="px-2 py-1 bg-gray-300 hover:bg-gray-400 rounded"
                     disabled={disabled || value <= min}
+                    className="px-2 py-1 bg-gray-300 hover:bg-gray-400 rounded"
                 >
                     ➖
                 </button>
@@ -54,8 +57,8 @@ const PhraseDurationSlider: React.FC<PhraseDurationSliderProps> = ({
 
                 <button
                     onClick={increment}
-                    className="px-2 py-1 bg-gray-300 hover:bg-gray-400 rounded"
                     disabled={disabled || value >= max}
+                    className="px-2 py-1 bg-gray-300 hover:bg-gray-400 rounded"
                 >
                     ➕
                 </button>
@@ -64,4 +67,4 @@ const PhraseDurationSlider: React.FC<PhraseDurationSliderProps> = ({
     );
 };
 
-export default PhraseDurationSlider;
+export default ValueSlider;

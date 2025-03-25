@@ -5,6 +5,7 @@ import {useLocalStorage} from '../hooks/useLocalStorage';
 import PhraseDurationSlider from './ui/PhraseDurationSlider.tsx';
 import {createCombinedAudio} from '../utils/createCombinedAudio.ts';
 import PausePercentageSlider from './ui/PausePercentageSlider.tsx';
+import ValueSlider from './ui/ValueSlider.tsx';
 
 interface Phrase {
     start: number;
@@ -12,13 +13,12 @@ interface Phrase {
 }
 
 export const AudioPhrasePlayer: React.FC = () => {
-    //const [phrases, setPhrases] = useState<Phrase[]>([]);
-    //const [audioUrl, setAudioUrl] = useState('');
+    const [phrases, setPhrases] = useState<Phrase[]>([]);
+    const [audioUrl, setAudioUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
 
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-
     const [minPhraseDuration, setMinPhraseDuration] = useLocalStorage<number>(
         'minPhraseDuration',
         5
@@ -29,6 +29,7 @@ export const AudioPhrasePlayer: React.FC = () => {
     );
 
     const [lastCalculatedDuration, setLastCalculatedDuration] = useState<number | null>(null);
+    const [lastPauseDuration, setLastPauseDuration] = useState<number | null>(null);
 
     const [finalAudioUrl, setFinalAudioUrl] = useState<string | null>(null);
 
@@ -54,8 +55,9 @@ export const AudioPhrasePlayer: React.FC = () => {
                 minPhraseDuration
             );
             console.log('Длительность аудио:', audioBuffer.duration);
-            //setPhrases(phrases);
+            setPhrases(phrases);
             setLastCalculatedDuration(minPhraseDuration); // ✅ фиксируем актуальное значение после расчёта
+            setLastPauseDuration(pausePercentage); // ✅ фиксируем актуальное значение после расчёта
             // ✅ Сразу генерируем итоговый файл
             await generateFinalAudio(phrases, audioBuffer);
         } catch (error) {
@@ -83,27 +85,16 @@ export const AudioPhrasePlayer: React.FC = () => {
                 minPhraseDuration
             );
             console.log('Перерасчёт завершён. Длительность аудио:', audioBuffer.duration);
-            //setPhrases(phrases);
+            setPhrases(phrases);
             setLastCalculatedDuration(minPhraseDuration); // ✅ обновляем после перерасчёта
+            setLastPauseDuration(pausePercentage); // ✅ фиксируем актуальное значение после перерасчёта
+
         } catch (error) {
             console.error('Ошибка при перерасчёте фраз:', error);
         } finally {
             setIsLoading(false);
         }
     };
-
-    // const getAudio = () => {
-    //     if (!audioUrl) {
-    //         console.error('Нет аудиофайла');
-    //         return null;
-    //     }
-    //
-    //     if (!audioRef.current) {
-    //         audioRef.current = new Audio(audioUrl);
-    //     }
-    //
-    //     return audioRef.current;
-    // };
 
     const generateFinalAudio = async (
         phrasesToCombine: Phrase[],
@@ -134,14 +125,17 @@ export const AudioPhrasePlayer: React.FC = () => {
     const isRecalculateDisabled =
         isLoading ||
         !uploadedFile ||
-        lastCalculatedDuration === minPhraseDuration;
+        lastCalculatedDuration === minPhraseDuration ||
+        lastPauseDuration === pausePercentage;
 
     return (
         <div className = "p-4 flex flex-col items-center space-y-4">
             <h2 className = "text-lg font-bold">Загрузите аудиофайл</h2>
 
             {/* ✅ Phrase Duration Slider */}
-            <PhraseDurationSlider
+            <ValueSlider
+                label={"Длительность фразы"}
+                unit={"сек."}
                 value = {minPhraseDuration}
                 onChange = {setMinPhraseDuration}
                 min = {1}
@@ -151,7 +145,11 @@ export const AudioPhrasePlayer: React.FC = () => {
             />
 
             {/* ✅ Pause Percentage Slider */}
-            <PausePercentageSlider
+            <ValueSlider
+                label={"Длительность паузы"}
+                unit={"%"}
+                max={200}
+                step={10}
                 value = {pausePercentage}
                 onChange = {setPausePercentage}
                 disabled = {isLoading}
