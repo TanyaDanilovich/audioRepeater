@@ -4,7 +4,7 @@ export const detectSilenceAndBuildPhrases = async (
     file: File,
     silenceThreshold = 0.01,
     minSilenceDuration = 0.1, // минимальная пауза, чтобы считалась паузой
-    minPhraseDuration  // минимальная длина фразы
+    minPhraseDuration:number  // минимальная длина фразы
 ) => {
     const audioContext = new AudioContext();
     const arrayBuffer = await file.arrayBuffer();

@@ -14,7 +14,7 @@ export interface Phrase {
 export const AudioPhrasePlayer: React.FC = () => {
 
     const [isLoading, setIsLoading] = useState(false);
-    const [phrases, setPhrases] = useState([]);
+    const [phrases, setPhrases] = useState<Phrase[] | []>([]);
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
     // User settings in localStorage
