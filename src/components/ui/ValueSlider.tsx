@@ -31,7 +31,7 @@ const ValueSlider: React.FC<ValueSliderProps> = ({
     };
 
     return (
-        <div className="flex flex-col items-center space-y-2">
+        <div className="flex flex-col items-center space-y-1 mb-8 ">
             <label className="text-sm font-medium">
                 {`${label}: ${value} ${unit}`}
             </label>
@@ -52,7 +52,7 @@ const ValueSlider: React.FC<ValueSliderProps> = ({
                     value={value}
                     onChange={(e) => onChange(parseInt(e.target.value))}
                     disabled={disabled}
-                    className="w-64"
+                    className="w-[150px] sm:w-64"
                 />
 
                 <button
