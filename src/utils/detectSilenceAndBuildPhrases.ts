@@ -6,8 +6,8 @@ import { Phrase } from '../components/AudioPhrasePlayer.tsx';
  */
 export const detectSilenceAndBuildPhrases = async (
     file: File,
-    silenceThreshold = 0.03,      // Amplitude threshold below which a sample is considered "silence"
-    minSilenceDuration = 0.3,     // Minimum duration (in seconds) for silence to be valid
+    silenceThreshold:number,      // Amplitude threshold below which a sample is considered "silence"
+    minSilenceDuration:number,     // Minimum duration (in seconds) for silence to be valid
     minPhraseDuration: number     // Minimum duration (in seconds) for a valid phrase
 ) => {
     const audioContext = new AudioContext();
@@ -65,7 +65,7 @@ export const detectSilenceAndBuildPhrases = async (
                         duration: phraseDuration
                     });
 
-                    console.log(`🗣 Phrase added: ${lastPhraseStart.toFixed(2)}s → ${phraseEnd.toFixed(2)}s`);
+                    console.log(`🗣 Phrase added: ${lastPhraseStart.toFixed(2)}s → ${phraseDuration}s`);
 
                     // Update the starting point for the next phrase
                     lastPhraseStart = silenceEnd / sampleRate;
