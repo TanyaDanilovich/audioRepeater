@@ -1,14 +1,22 @@
-import {Phrase} from '../components/AudioPhrasePlayer.tsx';
+import { Phrase } from '../components/AudioPhrasePlayer.tsx';
 
+/**
+ * Detects silences in an audio file and splits it into phrases.
+ * Returns an array of phrase segments and the decoded AudioBuffer.
+ */
 export const detectSilenceAndBuildPhrases = async (
     file: File,
-    silenceThreshold = 0.01,
-    minSilenceDuration = 0.1, // минимальная пауза, чтобы считалась паузой
-    minPhraseDuration:number  // минимальная длина фразы
+    silenceThreshold = 0.03,      // Amplitude threshold below which a sample is considered "silence"
+    minSilenceDuration = 0.3,     // Minimum duration (in seconds) for silence to be valid
+    minPhraseDuration: number     // Minimum duration (in seconds) for a valid phrase
 ) => {
     const audioContext = new AudioContext();
+
+    // Decode the file into an AudioBuffer
     const arrayBuffer = await file.arrayBuffer();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    // Get PCM data from the first channel (mono analysis)
     const channelData = audioBuffer.getChannelData(0);
 
     const sampleRate = audioBuffer.sampleRate;
@@ -16,38 +24,50 @@ export const detectSilenceAndBuildPhrases = async (
 
     const phrases: Phrase[] = [];
 
+    // State tracking
     let isSilent = false;
     let silenceStart = 0;
     let lastPhraseStart = 0;
 
+    // === Debug logs ===
+    console.log('🔍 Starting audio analysis...');
+    console.log('🎚 Silence threshold:', silenceThreshold);
+    console.log('⏱ Min silence duration (sec):', minSilenceDuration);
+    console.log('⏱ Min phrase duration (sec):', minPhraseDuration);
+    console.log('🎧 Sample rate:', sampleRate);
+
+    // Iterate over the audio samples
     for (let i = 0; i < channelData.length; i++) {
         const amplitude = Math.abs(channelData[i]);
 
-        // Обнаружение входа в тишину
+
+        // Entering silence
         if (!isSilent && amplitude < silenceThreshold) {
             isSilent = true;
             silenceStart = i;
         }
 
-        // Обнаружение выхода из тишины
+        // Exiting silence
         if (isSilent && amplitude >= silenceThreshold) {
             const silenceEnd = i;
-            const silenceDuration = silenceEnd - silenceStart;
+            const silenceDurationSamples = silenceEnd - silenceStart;
 
-            // Если пауза достаточно длинная, проверяем длину текущей фразы
-            if (silenceDuration >= silenceSamples) {
+            // If the silence is long enough, mark the end of a phrase
+            if (silenceDurationSamples >= silenceSamples) {
                 const phraseEnd = silenceStart / sampleRate;
                 const phraseDuration = phraseEnd - lastPhraseStart;
 
+                // Only keep phrases longer than the minimum duration
                 if (phraseDuration >= minPhraseDuration) {
-                    // Фраза достаточно длинная, добавляем её
                     phrases.push({
                         start: lastPhraseStart,
                         end: phraseEnd,
                         duration: phraseDuration
                     });
 
-                    // Следующая фраза начнётся после этой паузы
+                    console.log(`🗣 Phrase added: ${lastPhraseStart.toFixed(2)}s → ${phraseEnd.toFixed(2)}s`);
+
+                    // Update the starting point for the next phrase
                     lastPhraseStart = silenceEnd / sampleRate;
                 }
             }
@@ -56,20 +76,28 @@ export const detectSilenceAndBuildPhrases = async (
         }
     }
 
-    // Добавляем последнюю фразу, если осталась
+    // Handle final phrase if it wasn't captured in the loop
     const audioDuration = audioBuffer.duration;
-    const remainingDuration = audioDuration - lastPhraseStart;
+    const remaining = audioDuration - lastPhraseStart;
 
-    if (remainingDuration >= minPhraseDuration) {
+    if (remaining >= minPhraseDuration) {
         phrases.push({
             start: lastPhraseStart,
             end: audioDuration,
-            duration: remainingDuration
+            duration: remaining
         });
+
+        console.log(`🗣 Final phrase: ${lastPhraseStart.toFixed(2)}s → ${audioDuration.toFixed(2)}s`);
     }
 
-    console.log('Найденные фразы:', phrases);
-    console.log('Продолжительность аудио:', audioDuration);
+    // Summary
+    console.log('📊 Total phrases found:', phrases.length);
+    console.log('⏱ Audio duration:', audioDuration.toFixed(2), 'seconds');
 
-    return {phrases, audioBuffer};
+    if (phrases.length === 0) {
+        console.warn('⚠️ No phrases detected.');
+        console.warn('Try increasing silenceThreshold or lowering minPhraseDuration.');
+    }
+
+    return { phrases, audioBuffer };
 };
